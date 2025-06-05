@@ -79,8 +79,13 @@ const config = {
     require("daisyui")
   ],
   daisyui: {
-    themes: ["corporate", "business", "winter", "dracula"],
-    darkTheme: "business",
+    themes: true,
+    darkTheme: "dark",
+    base: true,
+    styled: true,
+    utils: true,
+    prefix: "",
+    logs: false,
   },
 } satisfies Config;
 

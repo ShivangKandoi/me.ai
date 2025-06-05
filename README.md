@@ -35,9 +35,9 @@ A Notion-like workspace with mathematical rendering, tables, flowcharts, and AI 
    ```
 
 4. Start the development server:
-   ```bash
-   npm run dev
-   ```
+```bash
+npm run dev
+```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 

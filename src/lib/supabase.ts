@@ -1,6 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// Create a singleton instance that can be shared across the app
+let supabase: ReturnType<typeof createBrowserClient> | null = null;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey); 
+export function getSupabaseBrowser() {
+  if (!supabase) {
+    supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return supabase;
+} 

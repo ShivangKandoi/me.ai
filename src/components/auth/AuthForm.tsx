@@ -1,17 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import { getSupabaseBrowser } from '@/lib/supabase';
 
 interface AuthFormProps {
   mode: 'login' | 'register';
+  redirectTo?: string;
 }
 
-export const AuthForm = ({ mode }: AuthFormProps) => {
+export const AuthForm = ({ mode, redirectTo = '/' }: AuthFormProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const supabase = getSupabaseBrowser();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,17 +25,35 @@ export const AuthForm = ({ mode }: AuthFormProps) => {
 
     try {
       if (mode === 'register') {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
         });
+        
         if (error) throw error;
+
+        if (data.user && !data.user.identities?.length) {
+          setError('An account with this email already exists.');
+          return;
+        }
+
+        // Show success message for registration
+        setError('Check your email for the confirmation link.');
+        return;
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
+        
         if (error) throw error;
+
+        // Successful login - redirect to specified path
+        router.push(redirectTo);
+        router.refresh();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -69,18 +92,25 @@ export const AuthForm = ({ mode }: AuthFormProps) => {
             onChange={(e) => setPassword(e.target.value)}
             className="input input-bordered w-full"
             required
+            minLength={6}
           />
         </div>
 
         {error && (
-          <div className="text-error text-sm mt-2">
+          <div className={cn(
+            "text-sm mt-2",
+            error.includes('Check your email') ? 'text-success' : 'text-error'
+          )}>
             {error}
           </div>
         )}
 
         <button
           type="submit"
-          className="btn btn-primary w-full"
+          className={cn(
+            "btn w-full",
+            loading ? "btn-disabled" : "btn-primary"
+          )}
           disabled={loading}
         >
           {loading ? (

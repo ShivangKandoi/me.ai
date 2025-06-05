@@ -1,4 +1,4 @@
-import { supabase } from '../supabase';
+import { getSupabaseBrowser } from '../supabase';
 import type { Database } from '@/types/database';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -8,6 +8,7 @@ type Block = Database['public']['Tables']['blocks']['Row'];
 export const DatabaseService = {
   // Profile operations
   async getProfile(userId: string): Promise<Profile | null> {
+    const supabase = getSupabaseBrowser();
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -19,6 +20,7 @@ export const DatabaseService = {
   },
 
   async updateProfile(userId: string, updates: Partial<Profile>): Promise<Profile> {
+    const supabase = getSupabaseBrowser();
     const { data, error } = await supabase
       .from('profiles')
       .update(updates)
@@ -31,13 +33,23 @@ export const DatabaseService = {
   },
 
   // Page operations
-  async createPage(userId: string, title: string, parentId?: string): Promise<Page> {
+  async createPage(ownerId: string, title: string, parentId?: string): Promise<Page> {
+    const supabase = getSupabaseBrowser();
+    const timestamp = new Date().toISOString();
+    const slug = `${title.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+
     const { data, error } = await supabase
       .from('pages')
       .insert({
         title,
-        user_id: userId,
-        parent_id: parentId || null,
+        owner_id: ownerId,
+        parent_page_id: parentId || null,
+        content: {},
+        slug,
+        created_at: timestamp,
+        updated_at: timestamp,
+        is_favorite: false,
+        is_private: true,
       })
       .select()
       .single();
@@ -46,18 +58,20 @@ export const DatabaseService = {
     return data;
   },
 
-  async getPages(userId: string): Promise<Page[]> {
+  async getPages(ownerId: string): Promise<Page[]> {
+    const supabase = getSupabaseBrowser();
     const { data, error } = await supabase
       .from('pages')
       .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .eq('owner_id', ownerId)
+      .order('updated_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || [];
   },
 
   async getPage(pageId: string): Promise<Page | null> {
+    const supabase = getSupabaseBrowser();
     const { data, error } = await supabase
       .from('pages')
       .select('*')
@@ -68,10 +82,26 @@ export const DatabaseService = {
     return data;
   },
 
-  async updatePage(pageId: string, updates: Partial<Page>): Promise<Page> {
+  async getPageBySlug(slug: string): Promise<Page | null> {
+    const supabase = getSupabaseBrowser();
     const { data, error } = await supabase
       .from('pages')
-      .update(updates)
+      .select('*')
+      .eq('slug', slug)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async updatePage(pageId: string, updates: Partial<Page>): Promise<Page> {
+    const supabase = getSupabaseBrowser();
+    const { data, error } = await supabase
+      .from('pages')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', pageId)
       .select()
       .single();
@@ -81,6 +111,7 @@ export const DatabaseService = {
   },
 
   async deletePage(pageId: string): Promise<void> {
+    const supabase = getSupabaseBrowser();
     const { error } = await supabase
       .from('pages')
       .delete()
@@ -91,6 +122,9 @@ export const DatabaseService = {
 
   // Block operations
   async createBlock(pageId: string, type: string, content: any, position: number): Promise<Block> {
+    const supabase = getSupabaseBrowser();
+    const timestamp = new Date().toISOString();
+    
     const { data, error } = await supabase
       .from('blocks')
       .insert({
@@ -98,6 +132,8 @@ export const DatabaseService = {
         type,
         content,
         position,
+        created_at: timestamp,
+        updated_at: timestamp,
       })
       .select()
       .single();
@@ -107,6 +143,7 @@ export const DatabaseService = {
   },
 
   async getBlocks(pageId: string): Promise<Block[]> {
+    const supabase = getSupabaseBrowser();
     const { data, error } = await supabase
       .from('blocks')
       .select('*')
@@ -114,13 +151,17 @@ export const DatabaseService = {
       .order('position', { ascending: true });
 
     if (error) throw error;
-    return data;
+    return data || [];
   },
 
   async updateBlock(blockId: string, updates: Partial<Block>): Promise<Block> {
+    const supabase = getSupabaseBrowser();
     const { data, error } = await supabase
       .from('blocks')
-      .update(updates)
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', blockId)
       .select()
       .single();
@@ -130,6 +171,7 @@ export const DatabaseService = {
   },
 
   async deleteBlock(blockId: string): Promise<void> {
+    const supabase = getSupabaseBrowser();
     const { error } = await supabase
       .from('blocks')
       .delete()
@@ -140,6 +182,7 @@ export const DatabaseService = {
 
   // Realtime subscriptions
   subscribeToPage(pageId: string, callback: (payload: any) => void) {
+    const supabase = getSupabaseBrowser();
     return supabase
       .channel(`page:${pageId}`)
       .on(
@@ -147,8 +190,8 @@ export const DatabaseService = {
         {
           event: '*',
           schema: 'public',
-          table: 'blocks',
-          filter: `page_id=eq.${pageId}`,
+          table: 'pages',
+          filter: `id=eq.${pageId}`,
         },
         callback
       )

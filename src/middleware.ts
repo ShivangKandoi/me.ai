@@ -34,24 +34,44 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Get the session before proceeding
+  const { data: { session } } = await supabase.auth.getSession()
 
-  // Auth routes - redirect to / if already logged in
-  if (request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register')) {
-    if (user) {
+  // Define public routes that don't require authentication
+  const publicRoutes = ['/', '/login', '/register', '/auth/callback']
+  const isPublicRoute = publicRoutes.some(route => 
+    request.nextUrl.pathname === route || 
+    request.nextUrl.pathname.startsWith('/auth/')
+  )
+
+  // Handle authentication flows
+  if (isPublicRoute) {
+    // Redirect to home if already logged in and trying to access auth pages
+    if (session && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register')) {
       return NextResponse.redirect(new URL('/', request.url))
     }
     return response
   }
 
-  // Protected routes - redirect to /login if not logged in
-  if (!user && request.nextUrl.pathname !== '/') {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // Protected routes - redirect to login if not authenticated
+  if (!session) {
+    const redirectUrl = new URL('/login', request.url)
+    redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
+    return NextResponse.redirect(redirectUrl)
   }
 
   return response
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)',],
-} 
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * Feel free to modify this pattern to include more paths.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}
